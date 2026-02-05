@@ -31,7 +31,15 @@ The system prioritizes **correct identification over aggressive guessing** — u
 
 ## Installation
 
-### From source (recommended)
+> ⚠️ **WSL note:**
+> The project can be developed and packaged inside WSL, but webcam capture must be run using native Windows Python.
+> WSL does not expose camera devices to OpenCV.
+
+---
+
+### Option A — Development setup (WSL recommended)
+
+Use this if you are modifying code or building the package.
 
 ```bash
 git clone https://github.com/SakshamBjj/edge-face-recognition-v2.git
@@ -39,13 +47,17 @@ cd edge-face-recognition-v2
 pip install -e .
 ```
 
-Verify:
+Verify CLI:
 
 ```bash
 edge-face --help
 ```
 
-### After PyPI release
+---
+
+### Option B — Usage setup (Windows / native OS)
+
+For actual face collection and recognition:
 
 ```bash
 pip install edgeface-knn
@@ -53,7 +65,11 @@ pip install edgeface-knn
 
 ---
 
-## Quick Start
+## Running the Application
+
+> Run the following commands from **Windows terminal (PowerShell / CMD)**, not WSL.
+
+---
 
 ### 1) Register people
 
@@ -89,11 +105,26 @@ attendance/YYYY-MM-DD.csv
 
 ### 3) Optional configuration
 
-All runtime parameters are editable:
+Override default parameters:
 
 ```bash
 edge-face run --config configs/my_config.yaml
 ```
+
+---
+
+## Why this split exists
+
+WSL is a virtualized Linux environment and does not provide direct access to webcam hardware.
+The package itself is OS-independent, but real-time capture requires native OS execution.
+
+Typical workflow:
+
+| Task                    | Environment |
+| ----------------------- | ----------- |
+| Development / packaging | WSL         |
+| Face collection         | Windows     |
+| Real-time recognition   | Windows     |
 
 ---
 
