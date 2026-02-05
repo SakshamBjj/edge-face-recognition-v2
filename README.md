@@ -228,8 +228,8 @@ Deep learning was prototyped but exceeded real-time limits without GPU accelerat
 
 ```
 edge-face-recognition-v2/
-├── configs/default.yaml
 ├── src/edge_face/
+├── ├── default.yaml
 │   ├── __init__.py
 │   ├── cli.py
 │   ├── config.py

@@ -4,7 +4,7 @@ Does not require the package to be installed — works as a plain script.
 
     python scripts/collect_faces.py --name Alice
 
-Reads configs/default.yaml for all parameters.
+Reads default.yaml for all parameters.
 Run from the repo root directory.
 """
 
@@ -36,7 +36,7 @@ def _load_cfg(path: str) -> dict:
 def main():
     parser = argparse.ArgumentParser(description="Capture face samples for one person")
     parser.add_argument("--name", required=True, help="Person's name (used as label)")
-    parser.add_argument("--config", default="configs/default.yaml", help="YAML config path")
+    parser.add_argument("--config", default="default.yaml", help="YAML config path")
     args = parser.parse_args()
 
     cfg = _load_cfg(args.config)

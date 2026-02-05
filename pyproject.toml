@@ -1,6 +1,6 @@
 [project]
 name = "edgeface-knn"
-version = "2.0.1"  # ← CHANGED: Bumped for PyPI release
+version = "2.0.2"  # ← CHANGED: Bumped for PyPI release
 description = "Real-time CPU face recognition pipeline using classical ML, refactored from an embedded Raspberry Pi deployment into an installable modular package."
 readme = "README.md"
 license = {text = "MIT"}

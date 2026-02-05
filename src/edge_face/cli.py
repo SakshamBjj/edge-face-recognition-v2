@@ -127,11 +127,11 @@ def main():
     # collect
     collect_parser = sub.add_parser("collect", help="Capture face samples for one person")
     collect_parser.add_argument("--name", required=True, help="Person's name (label)")
-    collect_parser.add_argument("--config", default="configs/default.yaml", help="Path to YAML config")
+    collect_parser.add_argument("--config", default="default.yaml", help="Path to YAML config")
 
     # run
     run_parser = sub.add_parser("run", help="Launch real-time recognition")
-    run_parser.add_argument("--config", default="configs/default.yaml", help="Path to YAML config")
+    run_parser.add_argument("--config", default="default.yaml", help="Path to YAML config")
 
     args = parser.parse_args()
 
