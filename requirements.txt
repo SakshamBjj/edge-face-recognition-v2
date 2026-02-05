@@ -1,0 +1,12 @@
+# Edge Face Recognition - Dependencies
+# 
+# This file is provided for convenience (pip install -r requirements.txt).
+# Source of truth: pyproject.toml
+# 
+# For package installation with CLI, use:
+#   pip install -e .
+
+opencv-python>=4.5
+numpy>=1.21
+scikit-learn>=1.0
+pyyaml>=5.4
