@@ -1,7 +1,10 @@
 # Edge Face Recognition (CPU-Only)
 
+[![PyPI version](https://img.shields.io/pypi/v/edgeface-knn.svg)](https://pypi.org/project/edgeface-knn/)
+[![License](https://img.shields.io/pypi/l/edgeface-knn.svg)](https://pypi.org/project/edgeface-knn/)
+
 > ⚠️ Repository name contains `v2` to indicate the refactored codebase.  
-> The installable Python package remains `edge-face-recognition` (no v2) to preserve upgrade compatibility.
+> The installable Python package is **`edgeface-knn`** and remains versioned independently of the repository name.
 
 Real-time face recognition designed for CPU-only environments — laptops, embedded systems, and Raspberry-Pi-class devices.
 
@@ -29,49 +32,18 @@ The system prioritizes **correct identification over aggressive guessing** — u
 
 ---
 
-## Installation
+## Quick Install (Windows — recommended for usage)
 
-> ⚠️ **WSL note:**
-> The project can be developed and packaged inside WSL, but webcam capture must be run using native Windows Python.
-> WSL does not expose camera devices to OpenCV.
-
----
-
-### Option A — Development setup (WSL recommended)
-
-Use this if you are modifying code or building the package.
+Install the published package and run directly:
 
 ```bash
-git clone https://github.com/SakshamBjj/edge-face-recognition-v2.git
-cd edge-face-recognition-v2
-pip install -e .
-```
-
-Verify CLI:
-
-```bash
+pip install edgeface-knn
 edge-face --help
 ```
 
 ---
 
-### Option B — Usage setup (Windows / native OS)
-
-For actual face collection and recognition:
-
-```bash
-pip install edgeface-knn
-```
-
----
-
-## Running the Application
-
-> Run the following commands from **Windows terminal (PowerShell / CMD)**, not WSL.
-
----
-
-### 1) Register people
+### Collect faces
 
 ```bash
 edge-face collect --name Alice
@@ -82,7 +54,7 @@ Captures 100 samples per person via webcam automatically.
 
 ---
 
-### 2) Run recognition
+### Run recognition
 
 ```bash
 edge-face run
@@ -99,6 +71,32 @@ Logs saved to:
 
 ```
 attendance/YYYY-MM-DD.csv
+```
+
+---
+
+## Development Setup (WSL)
+
+Use this only if you want to modify the codebase or build the package.
+
+> WSL does not provide webcam access to OpenCV — runtime testing must be done on Windows.
+
+```bash
+git clone https://github.com/SakshamBjj/edge-face-recognition-v2.git
+cd edge-face-recognition-v2
+pip install -e .
+edge-face --help
+```
+
+---
+
+## Testing the Development Version (Windows)
+
+After installing the editable package from WSL, open **Windows terminal (PowerShell/CMD)** inside the same project and run:
+
+```bash
+edge-face collect --name TestUser
+edge-face run
 ```
 
 ---
