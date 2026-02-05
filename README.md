@@ -1,5 +1,3 @@
----
-
 # Edge Face Recognition (CPU-Only)
 
 > ⚠️ Repository name contains `v2` to indicate the refactored codebase.  
