@@ -153,7 +153,7 @@ Breaking changes: [Any API changes]
 
 ## Contact
 
-**Technical questions / feature discussions:** sakshambajaj@email.com  
+**Technical questions / feature discussions:** saksham.bjj@gmail.com  
 **Bug reports:** GitHub Issues
 
 ---
