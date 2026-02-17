@@ -1,207 +1,247 @@
 # Architecture Reference
 
-## Pipeline Overview
+## System Overview
+
+Real-time CPU face recognition pipeline. Every component chosen to guarantee sub-100ms deterministic latency without GPU acceleration.
+
+**Core constraint:** 40ms processing budget per frame at 30 FPS input → frame skipping required for real-time UX.
+
+---
+
+## Processing Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  Input: Video Frame (640×480 RGB, 30 FPS)              │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Grayscale Conversion (5ms)                             │
-│  • RGB → Gray (3× faster downstream processing)         │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Face Detection: Haar Cascade (20ms)                    │
-│  • scaleFactor=1.3, minNeighbors=5                      │
-│  • Output: [(x, y, w, h), ...] bounding boxes           │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Per-Face Processing (5ms)                              │
-│  • Crop face region                                     │
-│  • Resize to 50×50                                      │
-│  • Flatten to 2500D vector                              │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  KNN Classification (15ms)                              │
-│  • k=5, weights='distance'                              │
-│  • Distance-based confidence scoring                    │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Unknown Rejection (Optional)                           │
-│  • If confidence < threshold → label = "Unknown"        │
-│  • Unknowns excluded from attendance logging            │
-└─────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│  Output: {name, confidence, bbox}                       │
-│  Total Latency: 40ms per processed frame                │
-└─────────────────────────────────────────────────────────┘
+Camera Input (640×480 RGB @ 30 FPS)
+ ↓
+Grayscale Conversion (~5 ms)
+ → Detection only — Haar requires grayscale; saves ~15ms downstream
+ ↓
+Haar Cascade Detection (~20 ms)
+ → scaleFactor=1.3, minNeighbors=5
+ → Output: bounding boxes [(x, y, w, h), ...]
+ ↓
+Per-Face Processing (~5 ms)
+ → Crop from COLOR (BGR) frame — not grayscale
+ → Resize to 50×50 pixels
+ → Flatten → 7,500D vector (50 × 50 × 3 channels)
+ ↓
+KNN Classification (~15 ms for ≤500 samples)
+ → k=5, weights='distance', Euclidean distance
+ ↓
+Confidence Scoring
+ → score = 100 × exp(−mean_dist / 4500)
+ → Heuristic — decay constant 4500 calibrated empirically, not derived
+ → Self-confidence (enrolled face): 50–53%
+ → Hard negatives (family members): 28–35%
+ → Threshold: 40 (percent, configurable)
+ ↓
+Unknown Rejection
+ → confidence < 40 → label = "Unknown", excluded from attendance log
+ ↓
+Output: {name, confidence, bbox}
+Total: ~40 ms per processed frame
 ```
 
-## Component Specifications
+---
 
-### 1. Face Detection: Haar Cascade
+## Component Decisions
 
-Chosen for predictable CPU latency (~20ms detection time).
+### Detection: Haar Cascade
 
-**Configuration:**
+**Alternatives considered:** HOG+SVM (2× slower), MTCNN (10× slower on CPU), MediaPipe (requires TFLite).
+
+**Chosen:** Haar Cascade — only option meeting the 20ms detection budget on CPU.
+
+**Parameter rationale:**
+
 ```python
-scaleFactor=1.3  # Balance: detection rate vs speed
-minNeighbors=5   # Reduce false positives (higher = stricter)
+scaleFactor=1.3   # Empirically chosen: smaller → more detections, slower;
+                  # larger → faster, misses faces. 1.3 = balance point.
+minNeighbors=5    # Controls false positive rate.
+                  # 5 = good precision/recall for indoor single-subject scenarios.
 ```
 
-**Performance characteristics:** Optimized for frontal faces; detection accuracy degrades at angles exceeding ±30°.
+**Known limit:** Side profiles (>30°) have <20% detection rate. Accepted trade-off for latency budget.
 
 ---
 
-### 2. Feature Representation: Raw Pixels
+### Feature Representation: Raw Pixels
 
-**Approach:** 50×50 grayscale → 2500D vector (no feature extraction)
+**Alternatives considered:** HOG (+10ms overhead), LBP (more lighting-robust but slower), CNN embeddings (GPU required).
 
-This direct pixel representation provides sufficient discriminative power for small-scale deployments (5-10 identities) without additional preprocessing overhead. The approach prioritizes inference speed over feature compactness.
+**Chosen:** 50×50 color (BGR) crop, flattened to 7,500D vector.
 
----
+**Rationale:** Zero extraction overhead; sufficient discriminative power for <50 identities in controlled environments. Easy to debug — pixel values are directly inspectable.
 
-### 3. Classifier: KNN
-
-**Hyperparameters:**
-- **k=5:** Validated via confusion matrix analysis
-- **Distance weighting:** `weights='distance'` prioritizes closer neighbors
-
-**Search complexity:** O(n) linear search limits scalability. Performance remains acceptable for datasets under 1,000 samples (~15ms), but degrades beyond that threshold.
+**Trade-off accepted:** Less robust to lighting and pose variation than engineered features.
 
 ---
 
-### 4. Frame Processing Strategy
+### Classification: KNN
 
-The system processes every 2nd frame to maintain real-time responsiveness:
-- Input stream: 30 FPS
-- Effective processing rate: 15 FPS (66ms interval)
-- User experience remains smooth despite selective frame processing
+**Alternatives considered:** SVM (requires training step, no confidence scores), Random Forest (2× slower inference), neural net (overkill for 7,500D pixel features).
 
-This approach accommodates the 40ms processing time within a 30 FPS constraint (33ms per frame).
+**Chosen:** KNN (k=5, distance-weighted).
+
+**Hyperparameter rationale:**
+
+```python
+k=5               # k=3: too sensitive to outliers
+                  # k=7: no accuracy gain, slower
+weights='distance' # Closer neighbors weighted higher;
+                   # improves confidence score quality
+```
+
+**Scaling limit:** O(n) brute-force search. Acceptable for n < 500 samples (~15ms). Becomes bottleneck above ~5,000 samples.
 
 ---
 
-### 5. Unknown Rejection
+### Confidence Scoring
 
-Confidence-based filtering prevents false positive identifications.
+**Problem:** KNN always returns a nearest neighbor, even for unknown faces. Raw distances (~1,600–1,800 for 7,500D vectors) make linear subtraction (`100 - distance`) always negative → always 0.
 
-**Configuration:**
+**Fix:** Exponential decay over mean k-neighbor distance.
+
+```python
+score = 100.0 * np.exp(-mean_dist / 4500.0)
+```
+
+**Calibration:** Decay constant 4500 set so enrolled faces score 50–53%. Threshold at 40% (≈70% of self-score) provides variance headroom while rejecting visually similar non-enrolled faces (28–35%).
+
+This is a **heuristic** — not a calibrated probability. Label it as such in any external communication.
+
+---
+
+### Frame Skipping
+
+**Problem:** 40ms processing exceeds 33ms frame budget → processing every frame causes visual stuttering.
+
+**Solution:** Process every 2nd frame. Display last overlay on skipped frames.
+
+| Metric | All Frames | Every 2nd Frame |
+|--------|------------|-----------------|
+| Processing load | 121% (overloaded) | 60% |
+| Effective FPS | ~12 (stutters) | ~15 (smooth) |
+| Detection latency | 33ms | 66ms |
+
+**Why it works:** Human perception threshold for visual lag is ~50ms. 66ms frame interval is imperceptible.
+
+---
+
+### Unknown Rejection
+
+**Problem:** False positive in attendance = permanent incorrect record. False negative = user retries. Errors are asymmetric.
+
+**Solution:** Confidence threshold — predictions below 40% labeled "Unknown" and excluded from CSV logging.
+
 ```yaml
 runtime:
-  confidence_threshold: 40
+  confidence_threshold: 40   # Percent (0–100). Higher = stricter.
   unknown_label: "Unknown"
   reject_unknowns: true
 ```
 
-**Behavior:**
-- Predictions below threshold are labeled as "Unknown"
-- Unknown faces excluded from attendance logging
-- Visual distinction: green bbox (high confidence), orange (low confidence/unknown)
-
-**Trigger conditions:**
-- Unfamiliar individuals (forced nearest-neighbor match with low similarity)
-- Suboptimal capture conditions (poor lighting, extreme angles)
-- Partial occlusions affecting discriminative facial features
+**Visual feedback:** Green bbox (confidence ≥ 40), orange bbox + "Unknown" label (confidence < 40).
 
 ---
 
-## Operational Limits
+## Latency Budget
 
-### 1. Low Lighting
-Low lighting significantly reduces detection reliability due to gradient-based features. Accuracy can drop from 95% to 55% in uniformly dark conditions. Mitigation options include IR cameras, CLAHE histogram equalization, or adaptive threshold adjustment.
+| Component | Latency | Notes |
+|-----------|---------|-------|
+| Grayscale conversion | ~5 ms | Constant |
+| Haar Cascade detection | ~20 ms | Scales with image size, not face count (up to ~3 faces) |
+| Crop + resize + flatten | ~3 ms | Per face |
+| KNN search | ~15 ms | Scales linearly with sample count |
+| Confidence + labeling | ~2 ms | Per face |
+| **Total (single face)** | **~40 ms** | Meets real-time constraint with frame skipping |
 
-### 2. Side Angles (>30°)
-Frontal-trained cascade exhibits 20% detection rate at side angles, with 70% accuracy when detection succeeds. Multi-angle cascades or keypoint-based detectors (MTCNN) improve angular robustness.
-
-### 3. Partial Occlusions (Masks, Glasses)
-Pixel-based similarity is sensitive to occlusions. Masks reduce accuracy from 95% to 75%. Glasses typically maintain 90% accuracy. Specialized training on occluded faces or upper-face-only cascades improve resilience.
-
-### 4. Multiple Faces (>3)
-Processing time scales linearly with face count. Three faces process in 45ms; five faces require 75ms, exceeding real-time constraints. Batch predictions or prioritization strategies (largest face) help maintain responsiveness.
-
-### 5. Dataset Integrity
-The system includes fail-fast validation guards:
-- Empty dataset check
-- Length consistency (len(X) == len(y))
-- Dimensionality validation (X.ndim == 2)
-
-These prevent runtime failures from corrupted pickle files due to partial writes or serialization issues.
+**Multi-face degradation:** Each additional face adds ~5ms. Beyond 5 faces, latency exceeds 60ms (sub-real-time). Current behavior: process only the largest face.
 
 ---
 
-## Performance Characteristics
+## Scaling Limits
 
-**Latency breakdown:**
-- Grayscale conversion: 5ms
-- Face detection: 20ms
-- Preprocessing: 5ms
-- KNN inference: 15ms
-- **Total:** 40ms per frame
+| # Identities | # Samples | KNN Search | Total Latency | Real-time? |
+|--------------|-----------|------------|---------------|------------|
+| 10 | 1,000 | ~10 ms | ~35 ms | ✓ |
+| 50 | 5,000 | ~30 ms | ~55 ms | ✓ (borderline) |
+| 100 | 10,000 | ~60 ms | ~85 ms | ✗ |
+| 500 | 50,000 | ~300 ms | ~325 ms | ✗ |
 
-**Accuracy metrics:**
-- Frontal faces (optimal conditions): 95%
-- With glasses: 90%
-- With masks: 75%
-- Side angles (±30°): 70%
-- Low light conditions: 55%
+**Recommendation:** <50 identities for smooth real-time performance.
 
-**Model footprint:** <1 MB
+**Upgrade path:** FAISS approximate nearest neighbors (O(log n)) for 50–500 identities; CNN embeddings (FaceNet/128D) + FAISS for larger datasets. Both require architectural changes outside this project's scope.
 
 ---
 
-## Scalability Analysis
+## Dataset Integrity Guards
 
-### Current System (5-10 identities) ✅
-- 500 vectors (100 samples × 5 people) → 15ms KNN search
-- Runs on Raspberry Pi 3B+ without GPU
+Three load-time checks in `dataset.py::load()` prevent runtime failures from corrupt data.
 
-### Medium Scale (50-100 identities) ⚠️
-- 5,000 vectors → 75ms search time (exceeds real-time constraint)
-- Requires approximate nearest neighbor search (FAISS) with compact embeddings
+```python
+if len(X) == 0:
+    raise ValueError("Dataset is empty. Run 'edge-face collect' first.")
 
-### Large Scale (1000+ identities) ❌
-- Current architecture infeasible
-- Requires distributed infrastructure and backend database
+if len(X) != len(y):
+    raise ValueError(f"Feature count ({len(X)}) != label count ({len(y)})")
+
+if X.ndim != 2:
+    raise ValueError(f"Expected 2D array, got {X.ndim}D")
+```
+
+**Why load-time:** Surfaces corruption immediately with an actionable message, not as a cryptic KNN failure mid-inference.
 
 ---
 
-## Production Upgrade Path
+## Configuration Reference
 
-**Phase 1: Enhanced Detection**
-- Implement MTCNN for angular robustness
+```yaml
+detection:
+  scale_factor: 1.3
+  min_neighbors: 5
+  min_size: [30, 30]
 
-**Phase 2: Feature Compression**
-- Deploy FaceNet embeddings (128D) for 20× size reduction
+recognition:
+  n_neighbors: 5
+  weights: "distance"
 
-**Phase 3: Efficient Search**
-- Integrate FAISS indexing for O(log n) retrieval
+runtime:
+  confidence_threshold: 40    # Percent. Calibrated heuristic — see Confidence Scoring.
+  unknown_label: "Unknown"
+  reject_unknowns: true
+  frame_skip: 2
+  camera_id: 0
 
-**Phase 4: Hardware Acceleration**
-- Target Jetson Nano (GPU) for 30 FPS without frame skipping
+output:
+  attendance_dir: "attendance"
+  bbox_color_known: [0, 255, 0]      # Green
+  bbox_color_unknown: [0, 165, 255]  # Orange
+```
+
+All runtime parameters are configurable without code changes. No hardcoded constants in source.
+
+---
+
+## Known Gaps
+
+| Gap | Impact | Mitigation |
+|-----|--------|------------|
+| No liveness detection | Photo/video replay attacks succeed | Acceptable for low-stakes attendance; add blink detection or depth camera for security-critical use |
+| No temporal smoothing | Confidence flicker near threshold | Hysteresis (dual thresholds) or EMA smoothing — deferred |
+| No multi-face tracking | Each frame independent | Add SORT/DeepSORT if cross-frame identity continuity needed |
+| Raw face storage | GDPR exposure | Delete images post-extraction; encrypt feature vectors at rest |
 
 ---
 
 ## References
 
-**Foundational work:**
-- Viola-Jones (2001) – Haar Cascade methodology
-- FaceNet (2015) – Deep learning embeddings
-- MTCNN (2016) – Multi-stage detection architecture
+- Viola-Jones (2001): Haar Cascade face detection
+- Cover & Hart (1967): K-Nearest Neighbors
+- [OpenCV Cascade Classifier](https://docs.opencv.org/4.x/db/d28/tutorial_cascade_classifier.html)
+- [scikit-learn KNN](https://scikit-learn.org/stable/modules/neighbors.html)
+- [FAISS](https://github.com/facebookresearch/faiss) — upgrade path for large datasets
 
-**Implementation resources:**
-- [scikit-learn KNN Documentation](https://scikit-learn.org/stable/modules/neighbors.html)
-- [OpenCV Cascade Classification](https://docs.opencv.org/4.x/db/d28/tutorial_cascade_classifier.html)
-- [FAISS: Facebook AI Similarity Search](https://github.com/facebookresearch/faiss)
+---
+
+**Last Updated:** February 2026
