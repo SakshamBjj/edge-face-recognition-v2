@@ -1,20 +1,38 @@
 [project]
 name = "edgeface-knn"
-version = "2.0.3"  # ← CHANGED: Bumped for PyPI release
-description = "Real-time CPU face recognition pipeline using classical ML, refactored from an embedded Raspberry Pi deployment into an installable modular package."
+version = "2.0.5"  # Added cross-platform camera handling with WSL2 detection
+description = "Real-time CPU face recognition using classical ML (Haar Cascade + KNN). Designed for edge deployment on laptops, Raspberry Pi, and embedded devices without GPU acceleration."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
 
-authors = [{name = "Saksham Bajaj"}]
+authors = [{name = "Saksham Bajaj", email = "sakshambajaj@email.com"}]
 
-keywords = ["face recognition", "computer vision", "opencv", "edge ml", "classical machine learning"]
+keywords = [
+    "face recognition",
+    "computer vision",
+    "opencv",
+    "edge ml",
+    "classical machine learning",
+    "knn",
+    "cpu inference",
+    "raspberry pi",
+    "embedded systems",
+]
 
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 dependencies = [
@@ -24,10 +42,17 @@ dependencies = [
     "pyyaml>=5.4",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "build>=0.10",
+    "twine>=4.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/SakshamBjj/edge-face-recognition-v2"
 Source = "https://github.com/SakshamBjj/edge-face-recognition-v2"
 Tracker = "https://github.com/SakshamBjj/edge-face-recognition-v2/issues"
+Documentation = "https://github.com/SakshamBjj/edge-face-recognition-v2#readme"
 
 [project.scripts]
 edge-face = "edge_face.cli:main"
@@ -39,6 +64,5 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# ↓ NEW: Bundle default.yaml with the package
 [tool.setuptools.package-data]
 edge_face = ["default.yaml"]

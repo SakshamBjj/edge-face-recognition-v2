@@ -17,6 +17,7 @@ from .detector import FaceDetector
 from .dataset import FaceDataset
 from .model import FaceKNN
 from .pipeline import RecognitionPipeline
+from .camera import open_camera
 
 
 # ------------------------------------------------------------------
@@ -34,10 +35,11 @@ def _collect(args):
         cfg["face"]["min_neighbors"],
     )
 
-    cam = cv2.VideoCapture(cfg["camera"]["index"])
-    if not cam.isOpened():
-        print("[ERROR] Cannot access webcam")
-        sys.exit(1)
+    cam = open_camera(
+        cfg["camera"]["index"],
+        cfg["camera"]["width"],
+        cfg["camera"]["height"]
+    )
 
     print(f"\n[INFO] Collecting {samples_needed} samples for: {args.name}")
     print("[INFO] Position your face centrally. Press 'q' to cancel.\n")
@@ -68,7 +70,7 @@ def _collect(args):
             )
 
         frame_count += 1
-        cv2.imshow("Collecting Faces — press Q to cancel", frame)
+        cv2.imshow("Collecting Faces - press Q to cancel", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             print("[WARNING] Cancelled by user")
             break
@@ -104,12 +106,11 @@ def _run(args):
         cfg["face"]["min_neighbors"],
     )
 
-    cam = cv2.VideoCapture(cfg["camera"]["index"])
-    if not cam.isOpened():
-        print("[ERROR] Cannot access webcam")
-        sys.exit(1)
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, cfg["camera"]["width"])
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg["camera"]["height"])
+    cam = open_camera(
+        cfg["camera"]["index"],
+        cfg["camera"]["width"],
+        cfg["camera"]["height"]
+    )
 
     RecognitionPipeline(detector, model, cfg).run(cam)
 

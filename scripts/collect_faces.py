@@ -87,7 +87,7 @@ def main():
             )
 
         frame_count += 1
-        cv2.imshow("Collecting Faces — press Q to cancel", frame)
+        cv2.imshow("Collecting Faces - press Q to cancel", frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             print("[WARNING] Cancelled by user")
             break

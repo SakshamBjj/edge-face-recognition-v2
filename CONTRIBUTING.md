@@ -10,6 +10,8 @@ For design rationale and architectural decisions, see [ARCHITECTURE.md](ARCHITEC
 
 **Requirement:** Native OS execution for webcam access. WSL works for editing and packaging; camera I/O requires Windows or Linux native.
 
+**Camera handling:** The system automatically detects platform and tries fallback camera indices (0, 1, 2) if the configured index fails. WSL2 users receive a specific warning about USB passthrough limitations.
+
 ```bash
 git clone https://github.com/SakshamBjj/edge-face-recognition-v2.git
 cd edge-face-recognition-v2
@@ -30,6 +32,14 @@ pip install -e .
 # Windows terminal (same directory): camera commands
 edge-face collect --name TestUser
 edge-face run
+```
+
+**Troubleshooting camera access:**
+
+```python
+# Check available cameras (debugging helper)
+from edge_face.camera import get_available_cameras
+print(get_available_cameras())  # e.g., [0, 2] means indices 0 and 2 work
 ```
 
 ---
@@ -153,7 +163,7 @@ Breaking changes: [Any API changes]
 
 ## Contact
 
-**Technical questions / feature discussions:** saksham.bjj@gmail.com  
+**Technical questions / feature discussions:** sakshambajaj@email.com  
 **Bug reports:** GitHub Issues
 
 ---

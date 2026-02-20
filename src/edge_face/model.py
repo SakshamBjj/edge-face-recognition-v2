@@ -32,8 +32,8 @@ class FaceKNN:
             score = 100 * exp(-mean_dist / 4500.0)
 
         The decay constant 4500 was calibrated empirically: at typical
-        self-distances (~1,600-1,800 for 7,500D color vectors), this yields
-        50-53% for enrolled faces and <35% for dissimilar faces.
+        self-distances (~1,600–1,800 for 7,500D color vectors), this yields
+        50–53% for enrolled faces and <35% for dissimilar faces.
 
         This is *not* a calibrated probability — it is a relative score used
         for thresholding. High score = close to known faces; low = far away.

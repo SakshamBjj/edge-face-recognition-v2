@@ -116,7 +116,7 @@ Prototyped both classical CV and deep learning approaches.
 
 **Evolution:**
 - **v1 (Sept 2024):** Raspberry Pi prototype, single-file scripts
-- **v2 (Feb 2025):** Modular Python package, pip-installable, configuration-driven
+- **v2 (Dec 2025):** Modular Python package, pip-installable, configuration-driven
 
 **Decision to refactor:**
 - Makes it reusable across projects (attendance, access control, experiments)
@@ -405,6 +405,7 @@ edge-face-recognition-v2/
 │   ├── dataset.py          # Data collection & loading
 │   ├── model.py            # KNN classifier
 │   ├── pipeline.py         # End-to-end inference
+│   ├── camera.py           # Cross-platform camera initialization
 │   └── default.yaml        # Default configuration
 ├── scripts/
 │   └── collect_faces.py    # Legacy collection script
